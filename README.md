@@ -78,16 +78,21 @@ Distributed_MiniSQL/
 
 下面这些配置已写入 `minisql-common/src/main/resources/minisql-default.properties`，并通过 `MiniSqlConfigLoader` 统一加载：
 
+- Master 主机：`127.0.0.1`
 - ZooKeeper 注册路径：`/db`
+- ZooKeeper 连接地址：`127.0.0.1:2181`
+- ZooKeeper 会话超时：`60000ms`
+- ZooKeeper 连接超时：`15000ms`
 - Master 监听端口：`12345`
 - Region 客户端端口：`22222`
 - Region 数据迁移端口：`1117`
+- Socket 超时时间：`15000ms`
 
 可通过 JVM 参数覆盖（示例）：`-Dminisql.master.port=12346`
 
 ## 构建与运行
 
-在项目根目录（`E:\Distributed_MiniSQL`）下执行：
+在项目根目录下执行：
 
 ```powershell
 mvn clean verify
@@ -97,13 +102,13 @@ mvn clean verify
 
 ```powershell
 mvn -pl minisql-master -am install -DskipTests
-mvn -f minisql-master\pom.xml exec:java
+mvn -f minisql-master/pom.xml exec:java
 
 mvn -pl minisql-region -am install -DskipTests
-mvn -f minisql-region\pom.xml exec:java
+mvn -f minisql-region/pom.xml exec:java
 
 mvn -pl minisql-client -am install -DskipTests
-mvn -f minisql-client\pom.xml exec:java
+mvn -f minisql-client/pom.xml exec:java
 ```
 
 快速迭代时，只构建单个模块(例如)：
