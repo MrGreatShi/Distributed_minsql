@@ -63,7 +63,8 @@ public final class MiniSqlConfigLoader {
         }
         try {
             return Integer.parseInt(value.trim());
-        } catch (NumberFormatException ignored) {
+        } catch (NumberFormatException e) {
+            System.err.printf("Invalid numeric config value '%s', using default %d%n", value.trim(), defaultValue);
             return defaultValue;
         }
     }

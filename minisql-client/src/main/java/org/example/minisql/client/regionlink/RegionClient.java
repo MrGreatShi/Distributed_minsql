@@ -29,11 +29,18 @@ public final class RegionClient {
                 writer.write(sql);
                 writer.newLine();
                 writer.flush();
-                String response = reader.readLine();
-                if (response == null) {
+                StringBuilder result = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                    if (result.length() > 0) {
+                        result.append(System.lineSeparator());
+                    }
+                    result.append(line);
+                }
+                if (result.length() == 0) {
                     throw new IOException("Region closed connection without response");
                 }
-                return response;
+                return result.toString();
             }
         }
     }

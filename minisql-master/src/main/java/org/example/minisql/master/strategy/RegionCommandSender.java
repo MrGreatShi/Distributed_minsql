@@ -2,6 +2,7 @@ package org.example.minisql.master.strategy;
 
 import org.example.minisql.common.config.MiniSqlConfig;
 import org.example.minisql.protocol.codec.LineProtocol;
+import org.example.minisql.protocol.command.TextCommand;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -38,7 +39,19 @@ public final class RegionCommandSender {
                 writer.write(command);
                 writer.newLine();
                 writer.flush();
-                reader.readLine();
+                String response = reader.readLine();
+                if (response != null) {
+                    try {
+                        TextCommand reply = LineProtocol.parse(response);
+                        if (LineProtocol.isError(reply)) {
+                            System.err.printf("Region %s rejected command '%s': %s%n",
+                                region, command, LineProtocol.errorMessage(reply));
+                        }
+                    } catch (IllegalArgumentException ignored) {
+                        System.err.printf("Region %s returned unexpected response for '%s': %s%n",
+                            region, command, response);
+                    }
+                }
             }
         } catch (IOException e) {
             System.err.printf("Failed to send command to region %s: %s%n", region, e.getMessage());

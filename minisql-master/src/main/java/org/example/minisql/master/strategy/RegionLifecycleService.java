@@ -18,7 +18,10 @@ public final class RegionLifecycleService implements AutoCloseable {
     }
 
     public void onRegionAvailable(String region) {
+        String strategy = tableManager.isKnownRegion(region) ? "RECOVER" : "ADD";
         tableManager.markRegionAvailable(region);
+        System.out.printf("[%s] Region %s detected, applying %s strategy%n",
+            java.time.LocalTime.now(), region, strategy);
         executor.submit(() -> commandSender.sendRecover(region));
     }
 

@@ -125,6 +125,10 @@ public final class TableManager {
         return new ArrayList<>(new TreeSet<>(knownRegions));
     }
 
+    public synchronized boolean isKnownRegion(String region) {
+        return knownRegions.contains(normalizeRegion(region));
+    }
+
     private List<String> chooseLeastLoadedRegions(int count, Set<String> excluded) {
         return healthyRegions.stream()
             .filter(region -> !excluded.contains(region))

@@ -81,16 +81,15 @@ public final class ClientShell {
             activeRoute = router.route(request);
             primaryResult = regionClient.execute(activeRoute.primaryRegion(), request.sql());
         }
-        if (!activeRoute.hasSecondaryRegion()) {
-            return primaryResult;
+        if (activeRoute.hasSecondaryRegion()) {
+            try {
+                regionClient.execute(activeRoute.secondaryRegion(), request.sql());
+            } catch (IOException e) {
+                System.err.printf("WARN: secondary write failed on %s: %s%n",
+                    activeRoute.secondaryRegion(), e.getMessage());
+            }
         }
-        try {
-            String secondaryResult = regionClient.execute(activeRoute.secondaryRegion(), request.sql());
-            return primaryResult + System.lineSeparator() + secondaryResult;
-        } catch (IOException e) {
-            router.invalidate(request.tableName());
-            return primaryResult + System.lineSeparator() + "WARN: secondary write failed on " + activeRoute.secondaryRegion() + ": " + e.getMessage();
-        }
+        return primaryResult;
     }
 
     private String executeRead(SqlRequest request, String region) throws IOException {

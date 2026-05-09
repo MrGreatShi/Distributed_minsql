@@ -2,6 +2,7 @@ package org.example.minisql.client.router;
 
 import org.example.minisql.client.cache.RouteCache;
 import org.example.minisql.client.masterlink.MasterClient;
+import org.example.minisql.protocol.command.client.ClientOperation;
 import org.example.minisql.protocol.command.client.SqlRequest;
 import org.example.minisql.protocol.command.master.RouteInfo;
 
@@ -20,7 +21,7 @@ public final class QueryRouter {
         if (!request.operation().needsRoute()) {
             throw new IllegalArgumentException("Request does not need route");
         }
-        if (request.operation().writesData()) {
+        if (request.operation() == ClientOperation.CREATE_TABLE) {
             RouteInfo route = masterClient.queryRoute(request.operation().routeVerb(), request.tableName());
             cache.put(route);
             return route;

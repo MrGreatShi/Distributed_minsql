@@ -44,7 +44,8 @@ public final class ZookeeperRegionRegistry implements AutoCloseable {
                 return;
             }
             switch (event.getType()) {
-                case CHILD_ADDED, CHILD_UPDATED -> handleRegionAvailable(data);
+                case CHILD_ADDED -> handleRegionAvailable(data);
+                case CHILD_UPDATED -> pathToRegion.put(data.getPath(), extractRegion(data));
                 case CHILD_REMOVED -> handleRegionRemoved(data);
                 default -> {
                 }
