@@ -16,10 +16,15 @@ public final class MiniSqlConfigLoader {
         overrideWithSystemProperties(properties);
 
         return new MiniSqlConfig(
+            properties.getProperty(MiniSqlConfigKeys.MASTER_HOST, "127.0.0.1"),
             properties.getProperty(MiniSqlConfigKeys.ZOOKEEPER_REGISTRY_PATH, "/db"),
+            properties.getProperty(MiniSqlConfigKeys.ZOOKEEPER_CONNECT_STRING, "127.0.0.1:2181"),
+            parseInt(properties.getProperty(MiniSqlConfigKeys.ZOOKEEPER_SESSION_TIMEOUT_MILLIS), 60000),
+            parseInt(properties.getProperty(MiniSqlConfigKeys.ZOOKEEPER_CONNECTION_TIMEOUT_MILLIS), 15000),
             parseInt(properties.getProperty(MiniSqlConfigKeys.MASTER_PORT), 12345),
             parseInt(properties.getProperty(MiniSqlConfigKeys.REGION_CLIENT_PORT), 22222),
-            parseInt(properties.getProperty(MiniSqlConfigKeys.REGION_MIGRATION_PORT), 1117)
+            parseInt(properties.getProperty(MiniSqlConfigKeys.REGION_MIGRATION_PORT), 1117),
+            parseInt(properties.getProperty(MiniSqlConfigKeys.SOCKET_TIMEOUT_MILLIS), 15000)
         );
     }
 
@@ -34,10 +39,15 @@ public final class MiniSqlConfigLoader {
     }
 
     private static void overrideWithSystemProperties(Properties target) {
+        override(target, MiniSqlConfigKeys.MASTER_HOST);
         override(target, MiniSqlConfigKeys.ZOOKEEPER_REGISTRY_PATH);
+        override(target, MiniSqlConfigKeys.ZOOKEEPER_CONNECT_STRING);
+        override(target, MiniSqlConfigKeys.ZOOKEEPER_SESSION_TIMEOUT_MILLIS);
+        override(target, MiniSqlConfigKeys.ZOOKEEPER_CONNECTION_TIMEOUT_MILLIS);
         override(target, MiniSqlConfigKeys.MASTER_PORT);
         override(target, MiniSqlConfigKeys.REGION_CLIENT_PORT);
         override(target, MiniSqlConfigKeys.REGION_MIGRATION_PORT);
+        override(target, MiniSqlConfigKeys.SOCKET_TIMEOUT_MILLIS);
     }
 
     private static void override(Properties target, String key) {
@@ -53,7 +63,8 @@ public final class MiniSqlConfigLoader {
         }
         try {
             return Integer.parseInt(value.trim());
-        } catch (NumberFormatException ignored) {
+        } catch (NumberFormatException e) {
+            System.err.printf("Invalid numeric config value '%s', using default %d%n", value.trim(), defaultValue);
             return defaultValue;
         }
     }
