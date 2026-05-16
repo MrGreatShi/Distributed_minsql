@@ -13,6 +13,20 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 基于 ZooKeeper 的 RegionServer 服务发现组件。
+ * <p>
+ * 监听 ZK 路径 {@code /db}（可配置）下的临时节点变化：
+ * <ul>
+ *   <li>CHILD_ADDED   — Region 上线，调用 {@link RegionLifecycleService#onRegionAvailable}</li>
+ *   <li>CHILD_REMOVED — Region 宕机，调用 {@link RegionLifecycleService#onRegionLost}</li>
+ * </ul>
+ * Region 在 ZK 节点中存储自身的 IP（节点数据字段），若数据为空则回退到节点名。
+ * <p>
+ * 注：{@code PathChildrenCache} 在 Curator 5.x 中已标记为废弃，建议未来迁移到
+ * {@code CuratorCache}。当前保留现有实现以降低修改风险。
+ */
+@SuppressWarnings("deprecation")
 public final class ZookeeperRegionRegistry implements AutoCloseable {
     private final MiniSqlConfig config;
     private final RegionLifecycleService lifecycleService;
@@ -25,6 +39,7 @@ public final class ZookeeperRegionRegistry implements AutoCloseable {
         this.lifecycleService = lifecycleService;
     }
 
+    /** 启动 ZK 连接和节点监听器。若连接失败则抛出异常。 */
     public void start() throws Exception {
         client = CuratorFrameworkFactory.newClient(
             config.zookeeperConnectString(),

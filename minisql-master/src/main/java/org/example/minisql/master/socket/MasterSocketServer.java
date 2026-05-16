@@ -19,6 +19,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Master 的 TCP Socket 监听器。
+ * <p>
+ * 监听端口 {@code masterPort}(默认 12345)，同时接受两类连接：
+ * <ul>
+ *   <li>客户端（{@code [client] ...}）：路由查询 / SHOW TABLES</li>
+ *   <li>RegionServer（{@code [region] ...}）：表变更通知 / 启动上报</li>
+ * </ul>
+ * 每条连接由一条独立线程处理，协议为「一行请求 / 一行响应」的文本行协议。
+ */
 public final class MasterSocketServer implements AutoCloseable {
     private final MiniSqlConfig config;
     private final ClientCommandHandler clientHandler;
@@ -33,6 +43,7 @@ public final class MasterSocketServer implements AutoCloseable {
         this.regionHandler = regionHandler;
     }
 
+    /** 开始监听，开启客户端连接接收循环。 */
     public void start() throws IOException {
         serverSocket = new ServerSocket();
         serverSocket.setReuseAddress(true);
@@ -41,6 +52,7 @@ public final class MasterSocketServer implements AutoCloseable {
         executor.submit(this::acceptLoop);
     }
 
+    /** 主接收循环，每个新连接交由线程池处理。 */
     private void acceptLoop() {
         while (running) {
             try {
@@ -72,6 +84,10 @@ public final class MasterSocketServer implements AutoCloseable {
         }
     }
 
+    /**
+     * 根据消息源（{@code [client]} 或 {@code [region]}）分发到对应 Handler。
+     * 解析失败或源不匹配时返回错误行。
+     */
     private String dispatch(String line, Socket socket) {
         try {
             TextCommand command = LineProtocol.parse(line);

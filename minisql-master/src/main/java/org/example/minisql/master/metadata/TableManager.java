@@ -13,12 +13,25 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
+/**
+ * Master 内存元数据中心。
+ * <p>
+ * 维护三个内存结构（均不持久化到磁盘）：
+ * <ul>
+ *   <li>{@code tableRoutes}  — 表名 → RouteInfo（主Region + 副Region）</li>
+ *   <li>{@code regionTables} — RegionIP → 该 Region 所持有的表名集合（负载表）</li>
+ *   <li>{@code healthyRegions} — 当前存活的 Region 集合</li>
+ *   <li>{@code knownRegions}  — 迎今见过的全部 Region（用于判断是新节点还是恢复节点）</li>
+ * </ul>
+ * 全部公共方法均为 {@code synchronized}，线程安全。
+ */
 public final class TableManager {
     private final Map<String, RouteInfo> tableRoutes = new HashMap<>();
     private final Map<String, Set<String>> regionTables = new HashMap<>();
     private final Set<String> healthyRegions = new HashSet<>();
     private final Set<String> knownRegions = new HashSet<>();
 
+    /** 将 Region 标记为健康并加入已知节点集合。 */
     public synchronized void markRegionAvailable(String region) {
         String normalized = normalizeRegion(region);
         knownRegions.add(normalized);
@@ -26,6 +39,18 @@ public final class TableManager {
         regionTables.computeIfAbsent(normalized, ignored -> new HashSet<>());
     }
 
+    /**
+     * 将 Region 标记为不健康，并为该 Region 上的每张表制定剗除计划。
+     * <p>
+     * 对每张受影响的表：
+     * <ol>
+     *   <li>找到另一副本节点（幸存者）</li>
+     *   <li>选负载最小的健康节点作为新副本</li>
+     *   <li>更新内存路由表，生成 CopyTask（让幸存者将数据推送给新副本）</li>
+     * </ol>
+     *
+     * @return 需要执行的数据备份任务列表
+     */
     public synchronized List<CopyTask> markRegionUnavailableAndPlanRecovery(String region) {
         String lostRegion = normalizeRegion(region);
         healthyRegions.remove(lostRegion);
@@ -54,6 +79,12 @@ public final class TableManager {
         return tasks;
     }
 
+    /**
+     * 确保表已建立路由条目。
+     * 若路由已存在则直接返回（幂等）；否则列中选最少负载的两个 Region。
+     *
+     * @throws IllegalStateException 当前健康 Region 数量 &lt; 2
+     */
     public synchronized RouteInfo ensureRouteForCreate(String tableName) {
         String normalized = normalizeTable(tableName);
         RouteInfo existing = tableRoutes.get(normalized);
@@ -79,6 +110,10 @@ public final class TableManager {
         return new ArrayList<>(new TreeSet<>(tableRoutes.keySet()));
     }
 
+    /**
+     * Region 启动/重连时上报已持有的表列表。
+     * 将 Region 标记为健康，并將这些表一并注册到内存路由表。
+     */
     public synchronized void registerRecoveredTables(String region, Collection<String> tables) {
         String normalizedRegion = normalizeRegion(region);
         markRegionAvailable(normalizedRegion);
@@ -105,6 +140,7 @@ public final class TableManager {
         }
     }
 
+    /** 将表从全局路由表中删除（不属于任何 Region ）。 */
     public synchronized void dropTable(String tableName) {
         String normalized = normalizeTable(tableName);
         RouteInfo removed = tableRoutes.remove(normalized);
@@ -129,6 +165,10 @@ public final class TableManager {
         return knownRegions.contains(normalizeRegion(region));
     }
 
+    /**
+     * 从健康 Region 中选出负载最小的若干个（负载 = 该 Region 上的表数量）。
+     * 负载相同时按 IP 字典序排序，保证选择确定性。
+     */
     private List<String> chooseLeastLoadedRegions(int count, Set<String> excluded) {
         return healthyRegions.stream()
             .filter(region -> !excluded.contains(region))

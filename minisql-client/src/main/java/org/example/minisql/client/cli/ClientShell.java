@@ -11,6 +11,19 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Scanner;
 
+/**
+ * 命令行交互入口。
+ * <p>
+ * 主循环读取用户输入，支持多行 SQL（以 {@code ;;} 结尾）。
+ * <p>
+ * 执行流程：
+ * <ol>
+ *   <li>SHOW TABLES — 直接查 Master，打印表名列表</li>
+ *   <li>其他 SQL — 解析表名→查路由→发往 Region 执行</li>
+ *   <li>写操作（INSERT/DELETE/CREATE/DROP TABLE）— 主副 Region 双写</li>
+ *   <li>读操作（SELECT）— 仅发主 Region</li>
+ * </ol>
+ */
 public final class ClientShell {
     private final MasterClient masterClient;
     private final RegionClient regionClient;
@@ -53,6 +66,7 @@ public final class ClientShell {
     private void execute(String sql) {
         try {
             SqlRequest request = SqlCommandParser.parse(sql);
+            // SHOW TABLES 无需路由，直接查 Master
             if (!request.operation().needsRoute()) {
                 printTables(masterClient.showTables());
                 return;
@@ -60,6 +74,7 @@ public final class ClientShell {
             RouteInfo route = router.route(request);
             String result = executeByRoute(request, route);
             System.out.println(result);
+            // DROP TABLE 成功后主动将路由缓存清除，避免旧缓存指向已删除的表
             if (request.operation().invalidatesCacheAfterSuccess()) {
                 router.invalidate(request.tableName());
             }
@@ -68,6 +83,15 @@ public final class ClientShell {
         }
     }
 
+    /**
+     * 根据路由信息执行 SQL。
+     * <ul>
+     *   <li>读操作（SELECT）— 仅发主 Region</li>
+     *   <li>写操作— 主 Region 必须成功，副 Region 失败仅记录警告（不中断流程）</li>
+     * </ul>
+     * <p>
+     * 若主 Region 第一次失败，会自动删除缓存并重新查路由后重试一次。
+     */
     private String executeByRoute(SqlRequest request, RouteInfo route) throws IOException {
         if (!request.operation().writesData()) {
             return executeRead(request, route.primaryRegion());
@@ -77,6 +101,7 @@ public final class ClientShell {
         try {
             primaryResult = regionClient.execute(activeRoute.primaryRegion(), request.sql());
         } catch (IOException e) {
+            // 主 Region 失败：删除缓存并重新向 Master 获取最新路由，再次尝试
             router.invalidate(request.tableName());
             activeRoute = router.route(request);
             primaryResult = regionClient.execute(activeRoute.primaryRegion(), request.sql());
